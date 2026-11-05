@@ -12,6 +12,14 @@ anti-colisión, solo bloques enteros y nunca en el pasado; panel Mis Reservas co
 historial y cancelación. Fuera de alcance: pagos, panel de administración, notificaciones externas,
 reservas de varias horas en un clic y matchmaking."
 
+## Clarifications
+
+### Session 2026-11-05
+
+- Q: ¿Cuántas reservas activas (futuras o en curso, sin cancelar) puede tener un usuario al mismo tiempo? → A: Máximo 2 reservas activas por usuario (permite jugar 2 horas seguidas con 2 reservas).
+- Q: ¿Después de cuánto tiempo sin actividad debe expirar la sesión de un usuario? → A: 24 horas sin actividad.
+- Q: ¿La grilla debe actualizarse sola cuando otro usuario reserva o cancela, o solo al recargar o actuar? → A: Se actualiza al cargar, al cambiar de cancha o fecha y después de reservar, cancelar o recibir un conflicto; sin actualización automática.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Registro e inicio de sesión (Priority: P1)
@@ -63,22 +71,25 @@ reservar un bloque disponible y verificar que el bloque pasa a "Reservado" para 
 2. **Given** una cancha y una fecha seleccionadas, **When** se muestra la grilla, **Then** se ven
    24 bloques de 1 hora (00:00–01:00 hasta 23:00–24:00), cada uno marcado como "Disponible" o
    "Reservado".
-3. **Given** un bloque "Disponible" en el futuro y un usuario sin reserva activa, **When** el
+3. **Given** un bloque "Disponible" en el futuro y un usuario con menos de 2 reservas activas,
+   **When** el
    usuario lo selecciona y confirma, **Then** la reserva se crea y el bloque queda "Reservado".
 4. **Given** que otro usuario reservó el mismo bloque mientras el primero confirmaba, **When** el
    primero confirma, **Then** el sistema re-valida, rechaza la reserva y muestra el mensaje "La
    cancha ya fue reservada en este horario", y la grilla se actualiza.
 5. **Given** un bloque cuyo horario de inicio ya pasó, **When** el usuario intenta reservarlo,
    **Then** el sistema no lo permite.
-6. **Given** un usuario que ya tiene una reserva activa, **When** intenta reservar otro bloque,
-   **Then** el sistema rechaza la reserva con un mensaje amigable indicando que ya tiene una
-   reserva activa.
+6. **Given** un usuario que ya tiene 2 reservas activas, **When** intenta reservar otro bloque,
+   **Then** el sistema rechaza la reserva con un mensaje amigable indicando que ya alcanzó el
+   máximo de 2 reservas activas.
+7. **Given** un usuario con 1 reserva activa, **When** reserva el bloque siguiente de la misma
+   cancha, **Then** la reserva se crea y el usuario queda con 2 reservas activas consecutivas.
 
 ---
 
 ### User Story 3 - Ver y cancelar mis reservas (Priority: P2)
 
-Un usuario con sesión activa abre su panel "Mis Reservas", ve su reserva futura y su historial de
+Un usuario con sesión activa abre su panel "Mis Reservas", ve sus reservas futuras y su historial de
 reservas pasadas (cancha, fecha y hora), y puede cancelar una reserva futura confirmando la
 acción.
 
@@ -113,8 +124,10 @@ panel, verificar ambas listas, cancelar la futura y verificar que el bloque vuel
   antes de confirmar: la reserva se rechaza al confirmar.
 - El usuario consulta el día actual: los bloques cuyo inicio ya pasó no se pueden reservar.
 - El usuario selecciona una fecha pasada en el calendario: ningún bloque se puede reservar.
-- La reserva activa de un usuario llega a su hora de fin: pasa al historial y el usuario ya puede
-  reservar de nuevo.
+- Una reserva activa de un usuario llega a su hora de fin: pasa al historial y libera un cupo de
+  los 2 permitidos.
+- Un usuario con 2 reservas activas confirma una tercera casi al mismo tiempo desde dos pestañas:
+  el límite se re-valida al confirmar y nunca quedan más de 2 reservas activas.
 - La sesión del usuario expira mientras está en la grilla: al confirmar se le pide iniciar sesión
   y no se guarda ninguna reserva.
 - Una petición pide una cancha que no está en el catálogo o un horario que no es un bloque entero:
@@ -134,6 +147,8 @@ panel, verificar ambas listas, cancelar la futura y verificar que el bloque vuel
   reservas, ver "Mis Reservas" y cancelar reservas; sin sesión DEBE responder como no autenticado.
 - **FR-005**: El sistema DEBE permitir que cada usuario vea y cancele solo sus propias reservas.
 - **FR-006**: El sistema NO DEBE guardar las contraseñas en texto legible.
+- **FR-006a**: La sesión DEBE expirar tras 24 horas sin actividad; una sesión expirada se trata
+  como no autenticada.
 
 **Exploración**
 
@@ -144,6 +159,9 @@ panel, verificar ambas listas, cancelar la futura y verificar que el bloque vuel
 - **FR-009**: Para la cancha y fecha elegidas, el sistema DEBE mostrar 24 bloques de 1 hora que
   cubren el día completo, cada uno marcado como "Disponible" o "Reservado".
 - **FR-010**: La grilla NO DEBE mostrar a otros usuarios quién hizo una reserva.
+- **FR-010a**: La grilla DEBE consultar la disponibilidad al abrirse, al cambiar de cancha o fecha
+  y después de reservar, cancelar o recibir un conflicto; NO DEBE actualizarse automáticamente
+  ni en tiempo real.
 
 **Reservas**
 
@@ -156,8 +174,9 @@ panel, verificar ambas listas, cancelar la futura y verificar que el bloque vuel
 - **FR-014**: El sistema NO DEBE permitir, bajo ninguna circunstancia, dos reservas para la misma
   cancha en el mismo bloque, incluso ante confirmaciones simultáneas.
 - **FR-015**: El sistema DEBE rechazar reservas de bloques cuyo inicio ya pasó.
-- **FR-016**: Un usuario DEBE tener como máximo una reserva activa (futura o en curso, sin
-  cancelar); el sistema DEBE rechazar una nueva reserva mientras tenga una activa.
+- **FR-016**: Un usuario DEBE tener como máximo 2 reservas activas (futuras o en curso, sin
+  cancelar); el sistema DEBE re-validar este límite al confirmar y rechazar una nueva reserva
+  mientras tenga 2 activas.
 - **FR-017**: El sistema DEBE rechazar como petición inválida cualquier reserva con cancha fuera
   del catálogo, fecha u hora mal formadas, o un horario que no sea un bloque entero.
 
@@ -195,7 +214,7 @@ panel, verificar ambas listas, cancelar la futura y verificar que el bloque vuel
 - **SC-003**: En pruebas con confirmaciones simultáneas del mismo bloque, el 100 % de los casos
   terminan con exactamente una reserva guardada y el resto rechazadas con el mensaje de conflicto.
 - **SC-004**: Ninguna reserva se guarda para un bloque pasado, fuera del catálogo o de un usuario
-  con otra reserva activa (0 casos en pruebas).
+  que ya tiene 2 reservas activas (0 casos en pruebas).
 - **SC-005**: El 90 % de los usuarios completa una reserva en el primer intento sin ayuda.
 - **SC-006**: Ningún mensaje visible para el usuario contiene errores técnicos ni trazas internas.
 - **SC-007**: Un usuario puede cancelar su reserva futura en menos de 30 segundos y el bloque se ve
@@ -215,8 +234,8 @@ panel, verificar ambas listas, cancelar la futura y verificar que el bloque vuel
 - La contraseña debe tener al menos 8 caracteres; no hay recuperación de contraseña ni
   verificación de correo en esta iteración (se necesitaría enviar correos, que está fuera de
   alcance).
-- La sesión se mantiene hasta que el usuario la cierre o expire por inactividad.
+- La sesión se mantiene hasta que el usuario la cierre o pasen 24 horas sin actividad (FR-006a).
 - Fuera de alcance: pasarela de pagos (el pago es presencial en el club), panel de administración
   de canchas, notificaciones externas (correo, SMS, WhatsApp), reservas de varias horas en un
-  solo clic (2 horas = 2 reservas, sujeto a la regla de una reserva activa) y matchmaking o
+  solo clic (2 horas = 2 reservas, sujeto al máximo de 2 reservas activas) y matchmaking o
   torneos.
